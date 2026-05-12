@@ -2,12 +2,19 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from codeisland_linux.codex_adapter import CodexSessionAdapter, RunningCodexSession, _is_codex_session_path
+from codeisland_linux.codex_adapter import (
+    CodexSessionAdapter,
+    RunningCodexSession,
+    _active_codex_rollout_path,
+    _is_codex_session_path,
+    _set_preferred_running_session,
+)
 from codeisland_linux.protocol import EventEnvelope, now_iso
 from codeisland_linux.server import Phase0Daemon
 from codeisland_linux.store import InMemoryDaemonStore
@@ -249,6 +256,53 @@ class CodexAdapterTests(unittest.TestCase):
 
             self.assertTrue(_is_codex_session_path(top_level, codex_home))
             self.assertFalse(_is_codex_session_path(subagent, codex_home))
+
+    def test_active_rollout_path_uses_latest_open_file(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            old_path = Path(temp_dir) / "rollout-old.jsonl"
+            new_path = Path(temp_dir) / "rollout-new.jsonl"
+            old_path.write_text('{"type":"session_meta","payload":{"id":"old"}}\n', encoding="utf-8")
+            new_path.write_text('{"type":"session_meta","payload":{"id":"new"}}\n', encoding="utf-8")
+            os.utime(old_path, ns=(100, 100))
+            os.utime(new_path, ns=(200, 200))
+
+            self.assertEqual(_active_codex_rollout_path([old_path, new_path]), new_path)
+
+    def test_running_session_preference_collapses_same_terminal_pane(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            old_path = Path(temp_dir) / "rollout-old.jsonl"
+            new_path = Path(temp_dir) / "rollout-new.jsonl"
+            old_path.write_text('{"type":"session_meta","payload":{"id":"old"}}\n', encoding="utf-8")
+            new_path.write_text('{"type":"session_meta","payload":{"id":"new"}}\n', encoding="utf-8")
+            os.utime(old_path, ns=(100, 100))
+            os.utime(new_path, ns=(200, 200))
+            sessions: dict[str, RunningCodexSession] = {}
+
+            _set_preferred_running_session(
+                sessions,
+                RunningCodexSession(
+                    path=old_path,
+                    pid=100,
+                    cwd="/tmp/project",
+                    terminal_app="WezTerm",
+                    terminal_socket="/run/user/1000/wezterm/gui-sock-1",
+                    terminal_pane="7",
+                ),
+            )
+            _set_preferred_running_session(
+                sessions,
+                RunningCodexSession(
+                    path=new_path,
+                    pid=101,
+                    cwd="/tmp/project",
+                    terminal_app="WezTerm",
+                    terminal_socket="/run/user/1000/wezterm/gui-sock-1",
+                    terminal_pane="7",
+                ),
+            )
+
+            self.assertEqual(len(sessions), 1)
+            self.assertEqual(next(iter(sessions.values())).path, new_path)
 
 
 class CodexAdapterAsyncTests(unittest.IsolatedAsyncioTestCase):

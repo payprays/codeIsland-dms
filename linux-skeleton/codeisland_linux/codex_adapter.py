@@ -836,6 +836,7 @@ def discover_running_codex_sessions(*, codex_home: Path) -> list[RunningCodexSes
         except OSError:
             continue
         session_paths: list[Path] = []
+        seen_session_paths: set[Path] = set()
         saw_subagent_session = False
         for fd_path in fd_paths:
             target = _readlink_text(fd_path)
@@ -847,26 +848,31 @@ def discover_running_codex_sessions(*, codex_home: Path) -> list[RunningCodexSes
             if CodexSessionAdapter._is_subagent_session_path(session_path):
                 saw_subagent_session = True
                 continue
+            if session_path in seen_session_paths:
+                continue
+            seen_session_paths.add(session_path)
             session_paths.append(session_path)
         if session_paths:
-            for session_path in session_paths:
-                sessions.setdefault(
-                    f"file:{session_path}",
-                    RunningCodexSession(
-                        path=session_path,
-                        pid=pid,
-                        cwd=cwd,
-                        terminal_app=terminal_app,
-                        terminal_pid=terminal_pid,
-                        terminal_pane=terminal_pane,
-                        terminal_socket=terminal_socket,
-                    ),
-                )
+            session_path = _active_codex_rollout_path(session_paths)
+            if session_path is None:
+                continue
+            _set_preferred_running_session(
+                sessions,
+                RunningCodexSession(
+                    path=session_path,
+                    pid=pid,
+                    cwd=cwd,
+                    terminal_app=terminal_app,
+                    terminal_pid=terminal_pid,
+                    terminal_pane=terminal_pane,
+                    terminal_socket=terminal_socket,
+                ),
+            )
             continue
         if saw_subagent_session:
             continue
-        sessions.setdefault(
-            f"proc:{pid}",
+        _set_preferred_running_session(
+            sessions,
             RunningCodexSession(
                 path=None,
                 pid=pid,
@@ -879,6 +885,42 @@ def discover_running_codex_sessions(*, codex_home: Path) -> list[RunningCodexSes
             ),
         )
     return sorted(sessions.values(), key=lambda item: str(item.path) if item.path is not None else f"proc:{item.pid}")
+
+
+def _set_preferred_running_session(sessions: dict[str, RunningCodexSession], candidate: RunningCodexSession) -> None:
+    identity_key = _running_codex_identity_key(candidate)
+    existing = sessions.get(identity_key)
+    if existing is None or _running_codex_preference_key(candidate) > _running_codex_preference_key(existing):
+        sessions[identity_key] = candidate
+
+
+def _running_codex_identity_key(session: RunningCodexSession) -> str:
+    if session.terminal_socket and session.terminal_pane:
+        return f"terminal:{session.terminal_socket}:{session.terminal_pane}"
+    if session.terminal_pid is not None and session.terminal_pane:
+        return f"terminal:{session.terminal_pid}:{session.terminal_pane}"
+    return f"proc:{session.pid}"
+
+
+def _running_codex_preference_key(session: RunningCodexSession) -> tuple[int, int, int, str]:
+    if session.path is None:
+        return (0, 0, session.pid, "")
+    modified_at, size = _rollout_file_freshness(session.path)
+    return (1, modified_at, size, str(session.path))
+
+
+def _active_codex_rollout_path(paths: list[Path]) -> Path | None:
+    if not paths:
+        return None
+    return max(paths, key=lambda path: (*_rollout_file_freshness(path), str(path)))
+
+
+def _rollout_file_freshness(path: Path) -> tuple[int, int]:
+    try:
+        stat_result = path.stat()
+    except OSError:
+        return (-1, -1)
+    return (stat_result.st_mtime_ns, stat_result.st_size)
 
 
 def _is_codex_process(proc_dir: Path) -> bool:
