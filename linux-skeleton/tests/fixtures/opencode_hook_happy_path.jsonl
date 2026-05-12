@@ -1,0 +1,5 @@
+{"hook_event_name":"SessionStart","session_id":"opencode-ses_demo","cwd":"/tmp/demo","ts":"2026-04-22T10:00:00Z"}
+{"hook_event_name":"UserPromptSubmit","session_id":"opencode-ses_demo","cwd":"/tmp/demo","prompt":"hello from opencode","_opencode_message_id":"msg-1","ts":"2026-04-22T10:00:01Z"}
+{"hook_event_name":"PreToolUse","session_id":"opencode-ses_demo","cwd":"/tmp/demo","tool_name":"Bash","tool_input":{"command":"pwd"},"ts":"2026-04-22T10:00:02Z"}
+{"hook_event_name":"PostToolUse","session_id":"opencode-ses_demo","cwd":"/tmp/demo","tool_name":"Bash","tool_output":{"exit_code":0},"ts":"2026-04-22T10:00:03Z"}
+{"hook_event_name":"Stop","session_id":"opencode-ses_demo","cwd":"/tmp/demo","last_assistant_message":"done","ts":"2026-04-22T10:00:04Z"}

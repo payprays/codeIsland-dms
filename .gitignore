@@ -1,0 +1,28 @@
+# DMS / local runtime artifacts
+*.log
+*.tmp
+codeisland-*.png
+
+# Python runtime/test artifacts
+__pycache__/
+.pytest_cache/
+*.py[cod]
+
+# Local agent and workflow metadata
+.agents/
+.codex/
+.sisyphus/
+.trellis/
+.claude/
+AGENTS.md
+CLAUDE.md
+skills-lock.json
+
+# Local scratch copies
+CodeIsland/
+dev.sh
+
+# Editor and OS files
+.DS_Store
+.vscode/
+.cursor/

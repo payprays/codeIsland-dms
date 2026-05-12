@@ -1,0 +1,14 @@
+{
+  "id": "codeIsland",
+  "name": "CodeIsland",
+  "description": "Daemon-backed AI session island for DankMaterialShell with OpenCode and Codex identity",
+  "version": "0.1.0",
+  "author": "CodeIsland",
+  "icon": "terminal",
+  "type": "widget",
+  "capabilities": ["dankbar-widget"],
+  "component": "./CodeIslandWidget.qml",
+  "settings": "./CodeIslandSettings.qml",
+  "requires_dms": ">=1.4.0",
+  "permissions": ["settings_read", "settings_write"]
+}
