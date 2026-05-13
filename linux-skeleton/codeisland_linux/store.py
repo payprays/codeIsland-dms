@@ -273,6 +273,11 @@ class InMemoryDaemonStore:
         session.status = "running"
         session.updated_at = event.ts
         session.last_event_at = event.ts
+        state = self._ensure_session_state(event.session_id)
+        state.active_tool_name = None
+        state.active_tool_status = None
+        state.completion_pending = False
+        state.completion_enqueued_at = None
         return []
 
     def _handle_task_progress(self, event: EventEnvelope) -> list[dict[str, Any]]:

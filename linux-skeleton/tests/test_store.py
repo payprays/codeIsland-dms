@@ -101,6 +101,51 @@ class StoreTests(unittest.TestCase):
         self.assertEqual(island_state["status"], "completed")
         self.assertEqual(island_state["completion_queue"], [])
 
+    def test_new_task_started_clears_completion_surface_before_prompt(self) -> None:
+        self.store.apply_event(EventEnvelope(
+            event_id="evt_session",
+            session_id=self.session_id,
+            kind="session.started",
+            payload={"title": "Test Session", "project_root": "/tmp/test"},
+            ts=now_iso(),
+        ))
+        self.store.apply_event(EventEnvelope(
+            event_id="evt_task_started",
+            session_id=self.session_id,
+            task_id=self.task_id,
+            kind="task.started",
+            payload={"task_id": self.task_id, "prompt": "old"},
+            ts=now_iso(),
+        ))
+        self.store.apply_event(EventEnvelope(
+            event_id="evt_task_completed",
+            session_id=self.session_id,
+            task_id=self.task_id,
+            kind="task.completed",
+            payload={"task_id": self.task_id, "summary": "done"},
+            ts=now_iso(),
+        ))
+
+        new_task_id = "task_new"
+        patches = self.store.apply_event(EventEnvelope(
+            event_id="evt_new_task_started",
+            session_id=self.session_id,
+            task_id=new_task_id,
+            kind="task.started",
+            payload={"task_id": new_task_id, "prompt": "new"},
+            ts=now_iso(),
+        ))
+
+        state = self.store.session_states[self.session_id]
+        self.assertFalse(state.completion_pending)
+        self.assertIsNone(state.completion_enqueued_at)
+        snapshot_patch = next(item for item in patches if item["kind"] == "snapshot.patch")
+        island_state = snapshot_patch["payload"]["island_state"]
+        self.assertEqual(island_state["surface"], "collapsed")
+        self.assertEqual(island_state["status"], "running")
+        self.assertFalse(island_state["auto_reveal"])
+        self.assertEqual(island_state["completion_queue"], [])
+
     def test_duplicate_event_is_ignored(self) -> None:
         event = EventEnvelope(
             event_id="evt_duplicate",
