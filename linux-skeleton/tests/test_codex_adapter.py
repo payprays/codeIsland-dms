@@ -458,6 +458,30 @@ class CodexAdapterAsyncTests(unittest.IsolatedAsyncioTestCase):
                 with self.assertRaises(asyncio.CancelledError):
                     await watch_task
 
+    async def test_watch_retries_when_daemon_socket_is_temporarily_unavailable(self) -> None:
+        adapter = CodexSessionAdapter()
+        missing_socket = str(Path(self.temp_dir.name) / "missing-codeislandd.sock")
+        codex_home = Path(self.temp_dir.name) / "codex-home"
+
+        with patch("codeisland_linux.codex_adapter.discover_running_codex_sessions", return_value=[]):
+            watch_task = asyncio.create_task(
+                adapter.watch_running(
+                    missing_socket,
+                    codex_home,
+                    interval=0.01,
+                    history_lines=1,
+                    stale_scan_interval=0.01,
+                    daemon_refresh_interval=0.01,
+                )
+            )
+            try:
+                await asyncio.sleep(0.05)
+                self.assertFalse(watch_task.done())
+            finally:
+                watch_task.cancel()
+                with self.assertRaises(asyncio.CancelledError):
+                    await watch_task
+
     async def test_watch_replays_running_session_after_daemon_store_reset(self) -> None:
         adapter = CodexSessionAdapter()
         codex_home = Path(self.temp_dir.name) / "codex-home"
