@@ -35,6 +35,7 @@ Item {
     readonly property string targetSessionId: root.sessionId || root.firstString(root.stateArray("completionQueue")) || root.firstString(root.stateArray("rotationQueue"))
     readonly property string titleText: root.cardString("title") || root.stateString("title") || "CodeIsland"
     readonly property string suffixText: root.cardString("suffix")
+    readonly property int providerSessionCount: root.groupCountForProvider(root.providerKey)
     readonly property string primaryLine: root.stateString("primaryTitle") || root.cardString("primaryLine") || root.statusLabel(root.status)
     readonly property string secondaryLine: root.stateString("primaryBody") || root.cardString("secondaryLine")
     readonly property string metaLine: root.stateString("metaLine")
@@ -100,6 +101,17 @@ Item {
             return "";
 
         return typeof root.card[key] === "string" ? root.card[key] : "";
+    }
+
+    function groupCountForProvider(providerKey) {
+        var wanted = providerKey && providerKey.length ? providerKey : "other";
+        var source = root.groups || [];
+        for (var index = 0; index < source.length; index += 1) {
+            var group = source[index];
+            if (group && group.providerKey === wanted)
+                return group.count || 0;
+        }
+        return root.sessionId.length ? 1 : 0;
     }
 
     function emitPopoutVisibility() {
@@ -435,7 +447,7 @@ Item {
                         font.family: Style.fontFamily(root.visualStyle)
                         font.pixelSize: Style.font.boardBody
                         font.weight: Font.Black
-                        text: root.providerLabel + " (1)"
+                        text: root.providerLabel + " (" + root.providerSessionCount + ")"
                     }
 
                     Item {

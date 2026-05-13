@@ -47,6 +47,9 @@ ACTIVITY_EVENT_KINDS = {
     "completion.enqueued",
 }
 
+SNAPSHOT_ACTIVITY_SESSION_LIMIT = 8
+SNAPSHOT_ACTIVITY_TOTAL_LIMIT = 80
+
 
 @dataclass(slots=True)
 class Session:
@@ -147,6 +150,32 @@ def from_json_line(raw: bytes) -> dict[str, Any]:
 
 def dataclass_dict(value: Any) -> dict[str, Any]:
     return asdict(value)
+
+
+def project_recent_activities(
+    activities: list[EventEnvelope],
+    *,
+    per_session_limit: int = SNAPSHOT_ACTIVITY_SESSION_LIMIT,
+    total_limit: int = SNAPSHOT_ACTIVITY_TOTAL_LIMIT,
+) -> list[EventEnvelope]:
+    if per_session_limit <= 0 or total_limit <= 0:
+        return []
+
+    kept: list[EventEnvelope] = []
+    counts_by_session: dict[str, int] = {}
+    for activity in reversed(activities):
+        if len(kept) >= total_limit:
+            break
+
+        session_count = counts_by_session.get(activity.session_id, 0)
+        if session_count >= per_session_limit:
+            continue
+
+        counts_by_session[activity.session_id] = session_count + 1
+        kept.append(activity)
+
+    kept.reverse()
+    return kept
 
 
 def _stamp_for(value: Any) -> str:
@@ -307,7 +336,7 @@ def build_snapshot(
             "sessions": [dataclass_dict(item) for item in sessions.values()],
             "tasks": [dataclass_dict(item) for item in tasks.values()],
             "interactions": [dataclass_dict(item) for item in interactions.values()],
-            "activities": [dataclass_dict(item) for item in activities],
+            "activities": [dataclass_dict(item) for item in project_recent_activities(activities)],
             "session_states": [dataclass_dict(item) for item in session_states.values()],
             "island_state": dataclass_dict(island_state),
             "next_seq": next_seq,

@@ -4,7 +4,16 @@ from dataclasses import asdict
 from uuid import uuid4
 from typing import Any
 
-from .protocol import DerivedSessionState, EventEnvelope, Interaction, Session, Task, derive_island_surface_state, now_iso
+from .protocol import (
+    DerivedSessionState,
+    EventEnvelope,
+    Interaction,
+    Session,
+    Task,
+    derive_island_surface_state,
+    now_iso,
+    project_recent_activities,
+)
 
 
 class ContractError(Exception):
@@ -652,7 +661,7 @@ class InMemoryDaemonStore:
             "sessions": [asdict(item) for item in self.sessions.values()],
             "tasks": [asdict(item) for item in self.tasks.values()],
             "interactions": [asdict(item) for item in self.interactions.values()],
-            "activities": [asdict(item) for item in self.activities],
+            "activities": [asdict(item) for item in project_recent_activities(self.activities)],
             "session_states": [asdict(item) for item in self.session_states.values()],
             "island_state": asdict(derive_island_surface_state(
                 sessions=self.sessions,

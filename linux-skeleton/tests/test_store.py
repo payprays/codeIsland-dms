@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from codeisland_linux.protocol import EventEnvelope, now_iso
+from codeisland_linux.protocol import SNAPSHOT_ACTIVITY_SESSION_LIMIT, EventEnvelope, now_iso
 from codeisland_linux.store import ContractError, InMemoryDaemonStore
 
 
@@ -159,6 +159,32 @@ class StoreTests(unittest.TestCase):
 
         self.assertEqual(len(self.store.sessions), 1)
         self.assertEqual(patches[0]["kind"], "daemon.warning")
+
+    def test_snapshot_activity_projection_keeps_recent_per_session(self) -> None:
+        self.store.apply_event(EventEnvelope(
+            event_id="evt_session",
+            session_id=self.session_id,
+            kind="session.started",
+            payload={"title": "Activity Cap", "project_root": "/tmp/test"},
+            ts=now_iso(),
+        ))
+
+        patches: list[dict[str, object]] = []
+        for index in range(SNAPSHOT_ACTIVITY_SESSION_LIMIT + 8):
+            patches = self.store.apply_event(EventEnvelope(
+                event_id=f"evt_prompt_{index}",
+                session_id=self.session_id,
+                kind="prompt.submitted",
+                payload={"prompt": f"prompt {index}"},
+                ts=f"2026-04-22T10:{index:02d}:00Z",
+            ))
+
+        snapshot_patch = next(item for item in patches if item["kind"] == "snapshot.patch")
+        activities = snapshot_patch["payload"]["activities"]
+        prompts = [activity["payload"]["prompt"] for activity in activities]
+        self.assertEqual(len(activities), SNAPSHOT_ACTIVITY_SESSION_LIMIT)
+        self.assertNotIn("prompt 0", prompts)
+        self.assertIn(f"prompt {SNAPSHOT_ACTIVITY_SESSION_LIMIT + 7}", prompts)
 
     def test_session_started_preserves_provider_from_payload(self) -> None:
         patches = self.store.apply_event(EventEnvelope(
